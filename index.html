@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistente de Diagnóstico e Resolução de Falhas</title>
+<style>
+  :root{
+    --bg: #0B1220;
+    --panel: #121B2E;
+    --panel-alt: #1A2540;
+    --border: #26314D;
+    --text: #E7ECF5;
+    --text-muted: #8A93AC;
+    --teal: #2DD4BF;
+    --amber: #F5A623;
+    --red: #FF5C5C;
+    --blue: #4C8DFF;
+    --mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;-webkit-font-smoothing:antialiased;}
+  button, select, input, textarea{font-family:inherit;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  .app{display:flex;height:100vh;overflow:hidden;}
+  .sidebar{width:236px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar-header{padding:20px 18px 16px;border-bottom:1px solid var(--border);}
+  .sidebar-header .mark{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;}
+  .sidebar-header .mark .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px rgba(45,212,191,.15);}
+  .sidebar-header .sub{font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;}
+  .nav{flex:1;padding:14px 10px;overflow-y:auto;}
+  .nav-group-label{font-size:11px;color:var(--text-muted);padding:6px 12px 6px;}
+  .nav button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text-muted);padding:9px 12px;border-radius:6px;font-size:13.5px;cursor:pointer;margin-bottom:2px;transition:background .12s,color .12s;}
+  .nav button:hover{background:var(--panel-alt);color:var(--text);}
+  .nav button.active{background:var(--panel-alt);color:var(--text);box-shadow:inset 3px 0 0 var(--teal);}
+  .sidebar-footer{padding:14px 18px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-muted);line-height:1.5;}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 26px;border-bottom:1px solid var(--border);background:var(--panel);flex-wrap:wrap;}
+  .topbar-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .field-label{font-size:11.5px;color:var(--text-muted);margin-bottom:4px;display:block;}
+  select, .text-input, .num-input{background:var(--panel-alt);color:var(--text);border:1px solid var(--border);padding:8px 10px;border-radius:6px;font-size:13px;}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:600;white-space:nowrap;}
+  .status-pill .dot{width:7px;height:7px;border-radius:50%;}
+  .status-pill.ok{background:rgba(45,212,191,.12);color:var(--teal);}
+  .status-pill.ok .dot{background:var(--teal);}
+  .status-pill.warn{background:rgba(245,166,35,.12);color:var(--amber);}
+  .status-pill.warn .dot{background:var(--amber);}
+  .status-pill.err{background:rgba(255,92,92,.12);color:var(--red);}
+  .status-pill.err .dot{background:var(--red);}
+  .status-pill.idle{background:rgba(138,147,172,.12);color:var(--text-muted);}
+  .status-pill.idle .dot{background:var(--text-muted);}
+
+  .views{flex:1;overflow-y:auto;padding:24px 26px 60px;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .view-header{margin-bottom:18px;}
+  .view-header h1{font-size:18px;font-weight:700;margin:0 0 4px;}
+  .view-header p{font-size:13px;color:var(--text-muted);margin:0;max-width:680px;line-height:1.55;}
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;}
+  .btn{padding:9px 15px;border-radius:6px;border:1px solid var(--border);background:var(--panel-alt);color:var(--text);font-size:13px;cursor:pointer;font-weight:500;transition:filter .12s;}
+  .btn:hover{filter:brightness(1.15);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-primary{background:var(--teal);color:#04211D;border-color:var(--teal);font-weight:600;}
+  .btn-warn{background:var(--amber);color:#2b1a00;border-color:var(--amber);font-weight:600;}
+  .btn-danger{background:transparent;border-color:var(--red);color:var(--red);}
+  .btn-ghost{background:transparent;}
+  .btn-sm{padding:5px 10px;font-size:12px;}
+
+  .grid-2{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin-bottom:14px;}
+  .panel h3{font-size:13.5px;font-weight:600;margin:0 0 4px;}
+  .panel .panel-sub{font-size:12px;color:var(--text-muted);margin:0 0 14px;}
+  .panel-scroll{max-height:320px;overflow-y:auto;}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;color:var(--text-muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;position:sticky;top:0;background:var(--panel);}
+  td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .mono{font-family:var(--mono);}
+  .empty-row td{text-align:center;color:var(--text-muted);padding:22px 10px;}
+
+  .badge{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--mono);}
+  .badge-tecnico{background:rgba(45,212,191,.14);color:var(--teal);}
+  .badge-fisico{background:rgba(245,166,35,.14);color:var(--amber);}
+  .badge-erro{background:rgba(255,92,92,.14);color:var(--red);}
+
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px;}
+  .field input, .field select, .field textarea{width:100%;background:var(--panel-alt);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:9px 10px;font-size:13px;}
+  .field textarea{resize:vertical;min-height:70px;font-family:var(--mono);font-size:12.5px;}
+
+  .conn-row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;}
+
+  .progress-wrap{height:6px;background:var(--panel-alt);border-radius:3px;overflow:hidden;margin:10px 0;}
+  .progress-bar{height:100%;background:var(--teal);width:0%;transition:width .25s linear;}
+
+  .result-card{border:1px solid var(--border);border-radius:8px;padding:18px;background:var(--panel-alt);}
+  .result-card .code{font-family:var(--mono);font-size:20px;font-weight:700;}
+  .result-card .desc{font-size:13.5px;margin:8px 0 12px;line-height:1.5;}
+  .confidence{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);margin-bottom:14px;}
+  .confidence .bar-wrap{flex:1;height:6px;background:var(--panel);border-radius:3px;overflow:hidden;}
+  .confidence .bar{height:100%;background:var(--blue);}
+
+  .action-log{font-size:12.5px;line-height:1.6;}
+  .action-log .step{padding:4px 0;color:var(--text-muted);}
+  .action-log .step.ok{color:var(--teal);}
+  .action-log .step.err{color:var(--red);}
+
+  .footnote{font-size:11.5px;color:var(--text-muted);margin-top:8px;line-height:1.5;}
+  .callout{border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:12px 14px;background:var(--panel-alt);font-size:12.5px;line-height:1.6;margin-bottom:14px;}
+  .callout.amber{border-left-color:var(--amber);}
+
+  @media (max-width: 920px){
+    .grid-2{grid-template-columns:1fr;}
+    .sidebar{width:190px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="mark"><span class="dot"></span>Diagnóstico de Falhas</div>
+      <div class="sub">Identifica a causa de uma falha, decide se dá para resolver por software e, se não der, abre a ordem de serviço certa.</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-group-label">Operação</div>
+      <button class="nav-btn active" data-view="diag">Diagnóstico</button>
+      <button class="nav-btn" data-view="historico">Histórico</button>
+      <div class="nav-group-label">Base de conhecimento</div>
+      <button class="nav-btn" data-view="problemas">Problemas conhecidos</button>
+      <button class="nav-btn" data-view="manuais">Manuais</button>
+      <div class="nav-group-label">Sobre</div>
+      <button class="nav-btn" data-view="sobre">Como funciona</button>
+    </nav>
+    <div class="sidebar-footer">Protótipo para estudo/portfólio — motor de correspondência por regras/palavras-chave, tudo em memória no navegador.</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="status-pill idle" id="connPill"><span class="dot"></span><span id="connText">Desconectado</span></span>
+      </div>
+    </header>
+
+    <div class="views" id="views">
+
+      <!-- DIAGNÓSTICO -->
+      <section class="view active" id="view-diag">
+        <div class="view-header">
+          <h1>Diagnóstico</h1>
+          <p>Conecte no equipamento, rode o diagnóstico e deixe o sistema classificar a falha antes de decidir o que fazer com ela.</p>
+        </div>
+
+        <div class="panel">
+          <h3>1. Conexão com o equipamento</h3>
+          <p class="panel-sub">Simulação da etapa de campo: identificar a máquina e o tipo de conexão física usada para ler o estado dela.</p>
+          <div class="conn-row">
+            <div class="field" style="min-width:220px;margin-bottom:0;">
+              <label>Equipamento / linha</label>
+              <input type="text" id="equipInput" value="Linha 1 · Extrusora de telhas">
+            </div>
+            <div class="field" style="min-width:160px;margin-bottom:0;">
+              <label>Tipo de conexão</label>
+              <select id="connType">
+                <option value="USB">Cabo USB</option>
+                <option value="Bluetooth">Bluetooth</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="btnConectar">Conectar</button>
+            <button class="btn btn-ghost" id="btnDesconectar">Desconectar</button>
+          </div>
+          <div class="progress-wrap" id="connProgressWrap" style="display:none;"><div class="progress-bar" id="connProgress"></div></div>
+        </div>
+
+        <div class="panel">
+          <h3>2. Diagnóstico</h3>
+          <p class="panel-sub">Lê os códigos de falha do equipamento conectado e cruza com a base de problemas conhecidos e os manuais cadastrados.</p>
+          <div class="toolbar" style="margin-bottom:10px;">
+            <button class="btn btn-primary" id="btnDiagnosticar" disabled>Executar diagnóstico</button>
+          </div>
+          <div class="field" style="max-width:520px;">
+            <label>Ou descreva o sintoma observado (opcional, refina a busca)</label>
+            <input type="text" id="sintomaInput" placeholder="ex.: linha parou sozinha, ruído estranho, erro no SAP...">
+          </div>
+          <div class="progress-wrap" id="diagProgressWrap" style="display:none;"><div class="progress-bar" id="diagProgress"></div></div>
+          <div id="diagResultado"></div>
+        </div>
+      </section>
+
+      <!-- HISTÓRICO -->
+      <section class="view" id="view-historico">
+        <div class="view-header">
+          <h1>Histórico de diagnósticos</h1>
+          <p>Todo diagnóstico executado, a classificação encontrada e o desfecho — resolvido automaticamente ou encaminhado para manutenção.</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-ghost" id="btnLimparHistorico">Limpar histórico</button>
+          <button class="btn" id="btnExportHistorico">Exportar (.csv)</button>
+        </div>
+        <div class="panel panel-scroll" style="max-height:520px;">
+          <table>
+            <thead><tr><th>Horário</th><th>Equipamento</th><th>Código</th><th>Classificação</th><th>Confiança</th><th>Desfecho</th></tr></thead>
+            <tbody id="historicoBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PROBLEMAS CONHECIDOS -->
+      <section class="view" id="view-problemas">
+        <div class="view-header">
+          <h1>Base de problemas conhecidos</h1>
+          <p>Cada falha cadastrada tem um código, sintomas associados, causa provável, classificação e — se for corrigível por software — a ação que o botão "Resolver agora" executa.</p>
+        </div>
+        <div class="panel">
+          <h3>Cadastrar novo problema</h3>
+          <div class="grid-2">
+            <div>
+              <div class="field"><label>Código da falha</label><input type="text" id="pCodigo" placeholder="ex.: E-730"></div>
+              <div class="field"><label>Sintomas (separados por vírgula)</label><input type="text" id="pSintomas" placeholder="ex.: timeout, sem resposta do CLP"></div>
+              <div class="field"><label>Causa provável</label><input type="text" id="pCausa" placeholder="ex.: perda de sessão OPC UA"></div>
+            </div>
+            <div>
+              <div class="field"><label>Classificação</label>
+                <select id="pClass">
+                  <option value="tecnico">Técnico / sistêmico (corrigível por software)</option>
+                  <option value="fisico">Físico (precisa de manutenção)</option>
+                </select>
+              </div>
+              <div class="field"><label>Ação automática (se técnico) ou orientação para a manutenção (se físico)</label><input type="text" id="pAcao" placeholder="ex.: reiniciar sessão OPC UA e limpar fila"></div>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btnAddProblema">Adicionar à base</button>
+        </div>
+        <div class="panel panel-scroll" style="max-height:400px;">
+          <table>
+            <thead><tr><th>Código</th><th>Sintomas</th><th>Causa provável</th><th>Classificação</th><th>Ação</th><th></th></tr></thead>
+            <tbody id="problemasBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- MANUAIS -->
+      <section class="view" id="view-manuais">
+        <div class="view-header">
+          <h1>Manuais das máquinas</h1>
+          <p>Cole trechos de manuais de manutenção aqui. O texto entra na busca por palavras-chave usada no diagnóstico, e fica disponível como referência para quem for resolver o problema.</p>
+        </div>
+        <div class="panel">
+          <h3>Cadastrar manual</h3>
+          <div class="field"><label>Título</label><input type="text" id="mTitulo" placeholder="ex.: Manual de manutenção — Extrusora modelo XT-200"></div>
+          <div class="field"><label>Equipamento / modelo</label><input type="text" id="mModelo" placeholder="ex.: Linha 1 · XT-200"></div>
+          <div class="field"><label>Conteúdo (procedimentos, códigos de erro, causas)</label><textarea id="mConteudo" placeholder="Cole aqui o trecho relevante do manual..."></textarea></div>
+          <button class="btn btn-primary" id="btnAddManual">Adicionar manual</button>
+        </div>
+        <div class="panel panel-scroll" style="max-height:400px;">
+          <table>
+            <thead><tr><th>Título</th><th>Modelo</th><th>Trecho</th><th></th></tr></thead>
+            <tbody id="manuaisBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SOBRE -->
+      <section class="view" id="view-sobre">
+        <div class="view-header">
+          <h1>Como este protótipo funciona</h1>
+          <p>Vale entender os limites reais da ideia — inclusive para explicar bem numa entrevista.</p>
+        </div>
+        <div class="panel">
+          <h3>Conexão com o equipamento</h3>
+          <p style="line-height:1.6;">Uma página comum não consegue conversar com qualquer máquina via USB ou Bluetooth de forma genérica: isso exige APIs específicas do navegador (WebUSB, WebSerial, WebBluetooth), protocolo do fabricante do equipamento, e normalmente um serviço rodando na borda (gateway OPC UA/Modbus) fazendo a ponte. Aqui essa etapa é simulada, do mesmo jeito que o painel MES simula o SAP — o objetivo é mostrar a lógica de diagnóstico e decisão, que é a parte que realmente importa para o problema descrito na vaga.</p>
+        </div>
+        <div class="panel">
+          <h3>O motor de diagnóstico</h3>
+          <p style="line-height:1.6;">Não é um modelo de linguagem rodando aqui dentro — é um mecanismo de regras e correspondência por palavras-chave: ele compara o código de falha e o sintoma digitado com a base de problemas conhecidos e com o texto dos manuais cadastrados, e calcula uma confiança pela quantidade de termos em comum. É simples de propósito: dá para entender exatamente por que o sistema decidiu o que decidiu, o que é importante quando a decisão pode acionar uma correção automática.</p>
+        </div>
+        <div class="panel">
+          <h3>Por que só falhas técnicas se resolvem sozinhas</h3>
+          <p style="line-height:1.6;">O botão "Resolver agora" só existe para causas classificadas como técnicas/sistêmicas — coisas como reiniciar uma sessão de comunicação, limpar uma fila de erro ou reenviar uma mensagem ao SAP. Falhas físicas (motor, rolamento, sensor danificado) sempre geram uma ordem de serviço para um técnico, nunca uma ação automática — não faz sentido, e não é seguro, um software "consertar" uma peça sozinho.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ASSISTENTE DE DIAGNÓSTICO E RESOLUÇÃO DE FALHAS
+// Motor de correspondência por palavras-chave — tudo em memória.
+// ============================================================
+
+function $(id) { return document.getElementById(id); }
+
+var conectado = false;
+var equipamentoAtual = "";
+var connTypeAtual = "";
+
+var problemas = [
+  { codigo: "E-101", sintomas: ["timeout", "comunicação", "opc ua", "sem resposta do clp"], causa: "Perda de sessão OPC UA com o CLP", classe: "tecnico", acao: "Reiniciar sessão OPC UA e limpar fila de assinatura" },
+  { codigo: "E-205", sintomas: ["temperatura fora da faixa", "sensor de temperatura", "leitura instável"], causa: "Offset de calibração do sensor de temperatura desatualizado", classe: "tecnico", acao: "Reaplicar offset de calibração salvo no último ajuste" },
+  { codigo: "E-310", sintomas: ["erro no sap", "idoc rejeitado", "status 51", "falha ao gravar"], causa: "Mapeamento de campo divergente no envio do IDoc ao SAP", classe: "tecnico", acao: "Reenviar mensagem com o mapeamento de campo revisado" },
+  { codigo: "E-420", sintomas: ["motor não responde", "atuador travado", "não liga o motor"], causa: "Motor ou atuador da linha com defeito", classe: "fisico", acao: "Inspeção elétrica e mecânica do motor pela manutenção" },
+  { codigo: "E-512", sintomas: ["ruído estranho", "vibração", "rolamento"], causa: "Desgaste de rolamento no eixo principal", classe: "fisico", acao: "Trocar rolamento — manutenção mecânica programada" },
+  { codigo: "E-610", sintomas: ["memória do clp", "clp travando", "próximo do limite"], causa: "Log interno do CLP próximo da capacidade máxima", classe: "tecnico", acao: "Limpar logs antigos do CLP e reiniciar o ciclo de varredura" }
+];
+
+var manuais = [
+  { titulo: "Manual de manutenção — Extrusora XT-200", modelo: "Linha 1 · XT-200", conteudo: "Em caso de timeout de comunicação OPC UA, verifique o gateway antes de reiniciar a sessão. Ruído ou vibração no eixo principal geralmente indica desgaste de rolamento e exige parada programada para manutenção mecânica." },
+  { titulo: "Manual de manutenção — Rotomoldadora RT-40", modelo: "Linha 2 · RT-40", conteudo: "Sensor de temperatura com leitura instável costuma ser problema de calibração, corrigível reaplicando o offset salvo. Motor que não responde a comando deve ser inspecionado fisicamente antes de qualquer nova tentativa por software." }
+];
+
+var historico = [];
+
+// --- CONEXÃO ---
+function setConnPill(state, texto) {
+  var pill = $("connPill");
+  pill.className = "status-pill " + state;
+  $("connText").textContent = texto;
+}
+
+function conectar() {
+  var equip = $("equipInput").value.trim();
+  var tipo = $("connType").value;
+  if (!equip) { alert("Informe o equipamento ou linha."); return; }
+
+  $("btnConectar").disabled = true;
+  setConnPill("warn", "Conectando via " + tipo + "...");
+  var wrap = $("connProgressWrap"), bar = $("connProgress");
+  wrap.style.display = "block";
+  bar.style.width = "0%";
+
+  var pct = 0;
+  var timer = setInterval(function () {
+    pct += 20 + Math.random() * 20;
+    if (pct >= 100) {
+      pct = 100;
+      bar.style.width = "100%";
+      clearInterval(timer);
+      conectado = true;
+      equipamentoAtual = equip;
+      connTypeAtual = tipo;
+      setConnPill("ok", "Conectado — " + equip + " (" + tipo + ")");
+      $("btnDiagnosticar").disabled = false;
+      $("btnConectar").disabled = false;
+      setTimeout(function () { wrap.style.display = "none"; }, 500);
+    } else {
+      bar.style.width = pct + "%";
+    }
+  }, 180);
+}
+
+function desconectar() {
+  conectado = false;
+  $("btnDiagnosticar").disabled = true;
+  setConnPill("idle", "Desconectado");
+  $("diagResultado").innerHTML = "";
+}
+
+// --- MOTOR DE CORRESPONDÊNCIA ---
+function normalizar(txt) {
+  return (txt || "").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ");
+}
+
+function pontuarProblema(problema, textoBusca) {
+  var termos = normalizar(textoBusca).split(/\s+/).filter(Boolean);
+  var alvo = normalizar(problema.sintomas.join(" ") + " " + problema.causa);
+  var acertos = 0;
+  termos.forEach(function (t) {
+    if (t.length > 2 && alvo.indexOf(t) !== -1) acertos++;
+  });
+  // bônus se algum sintoma cadastrado aparece inteiro no texto de busca
+  var buscaNorm = normalizar(textoBusca);
+  problema.sintomas.forEach(function (s) {
+    if (buscaNorm.indexOf(normalizar(s)) !== -1) acertos += 2;
+  });
+  return acertos;
+}
+
+function buscarManualRelacionado(problema) {
+  var melhorScore = 0, melhor = null;
+  manuais.forEach(function (m) {
+    var alvo = normalizar(m.titulo + " " + m.conteudo);
+    var score = 0;
+    problema.sintomas.concat([problema.causa]).forEach(function (s) {
+      if (alvo.indexOf(normalizar(s)) !== -1) score++;
+    });
+    if (score > melhorScore) { melhorScore = score; melhor = m; }
+  });
+  return melhorScore > 0 ? melhor : null;
+}
+
+// --- DIAGNÓSTICO ---
+function executarDiagnostico() {
+  if (!conectado) return;
+  var sintomaDigitado = $("sintomaInput").value.trim();
+
+  $("btnDiagnosticar").disabled = true;
+  var wrap = $("diagProgressWrap"), bar = $("diagProgress");
+  wrap.style.display = "block";
+  bar.style.width = "0%";
+  $("diagResultado").innerHTML = "";
+
+  var pct = 0;
+  var timer = setInterval(function () {
+    pct += 15 + Math.random() * 20;
+    if (pct >= 100) {
+      pct = 100;
+      bar.style.width = "100%";
+      clearInterval(timer);
+      setTimeout(function () {
+        wrap.style.display = "none";
+        $("btnDiagnosticar").disabled = false;
+        finalizarDiagnostico(sintomaDigitado);
+      }, 250);
+    } else {
+      bar.style.width = pct + "%";
+    }
+  }, 150);
+}
+
+function finalizarDiagnostico(sintomaDigitado) {
+  // "lê" um código de falha do equipamento — se o usuário descreveu um sintoma,
+  // prioriza achar o problema mais coerente com o texto; senão sorteia um código plausível.
+  var candidato = null, melhorScore = -1;
+  problemas.forEach(function (p) {
+    var texto = sintomaDigitado || p.sintomas[0];
+    var score = pontuarProblema(p, texto);
+    if (sintomaDigitado) {
+      if (score > melhorScore) { melhorScore = score; candidato = p; }
+    }
+  });
+  if (!sintomaDigitado || melhorScore <= 0) {
+    candidato = problemas[Math.floor(Math.random() * problemas.length)];
+    melhorScore = pontuarProblema(candidato, candidato.sintomas[0]);
+  }
+
+  var confianca = Math.max(35, Math.min(96, 40 + melhorScore * 12));
+  var manual = buscarManualRelacionado(candidato);
+
+  renderResultado(candidato, confianca, manual);
+
+  historico.unshift({
+    ts: new Date().toISOString(),
+    equipamento: equipamentoAtual,
+    codigo: candidato.codigo,
+    classe: candidato.classe,
+    confianca: confianca,
+    desfecho: "Aguardando ação"
+  });
+  renderHistorico();
+}
+
+function renderResultado(problema, confianca, manual) {
+  var classeLabel = problema.classe === "tecnico" ? "Técnico / sistêmico" : "Físico — precisa de manutenção";
+  var badgeClass = problema.classe === "tecnico" ? "badge-tecnico" : "badge-fisico";
+  var html = '<div class="result-card">';
+  html += '<div class="code">' + problema.codigo + ' <span class="badge ' + badgeClass + '" style="margin-left:8px;">' + classeLabel + '</span></div>';
+  html += '<div class="desc"><strong>Causa provável:</strong> ' + problema.causa + '</div>';
+  html += '<div class="confidence"><span>Confiança</span><div class="bar-wrap"><div class="bar" style="width:' + confianca + '%;"></div></div><span>' + confianca + '%</span></div>';
+  if (manual) {
+    html += '<div class="callout"><strong>' + manual.titulo + '</strong> (' + manual.modelo + ')<br>' + manual.conteudo + '</div>';
+  } else {
+    html += '<div class="callout amber">Nenhum manual cadastrado cobre este caso ainda. Vale adicionar um trecho na aba "Manuais" para melhorar diagnósticos futuros.</div>';
+  }
+
+  if (problema.classe === "tecnico") {
+    html += '<p class="footnote" style="margin-bottom:10px;"><strong>Ação automática disponível:</strong> ' + problema.acao + '</p>';
+    html += '<button class="btn btn-primary" id="btnResolver">Resolver agora</button>';
+  } else {
+    html += '<p class="footnote" style="margin-bottom:10px;"><strong>Orientação para a manutenção:</strong> ' + problema.acao + '</p>';
+    html += '<button class="btn btn-warn" id="btnAbrirOS">Abrir ordem de serviço</button>';
+  }
+  html += '<div class="action-log" id="actionLog" style="margin-top:14px;"></div>';
+  html += '</div>';
+
+  $("diagResultado").innerHTML = html;
+
+  if (problema.classe === "tecnico") {
+    $("btnResolver").addEventListener("click", function () { resolverAutomaticamente(problema); });
+  } else {
+    $("btnAbrirOS").addEventListener("click", function () { abrirOrdemServico(problema); });
+  }
+}
+
+function resolverAutomaticamente(problema) {
+  var log = $("actionLog");
+  var btn = $("btnResolver");
+  btn.disabled = true;
+  var passos = [
+    "Validando pré-condições de segurança...",
+    "Executando: " + problema.acao + "...",
+    "Verificando leitura do equipamento após a ação..."
+  ];
+  log.innerHTML = "";
+  var i = 0;
+  var interval = setInterval(function () {
+    if (i < passos.length) {
+      var div = document.createElement("div");
+      div.className = "step";
+      div.textContent = passos[i];
+      log.appendChild(div);
+      i++;
+    } else {
+      clearInterval(interval);
+      var sucesso = Math.random() < 0.88;
+      var div = document.createElement("div");
+      if (sucesso) {
+        div.className = "step ok";
+        div.textContent = "Falha corrigida — equipamento voltou ao estado normal.";
+        atualizarUltimoHistorico("Resolvido automaticamente");
+      } else {
+        div.className = "step err";
+        div.textContent = "A ação automática não resolveu. Encaminhando para ordem de serviço.";
+        log.appendChild(div);
+        atualizarUltimoHistorico("Escalado para manutenção (ação automática falhou)");
+        btn.style.display = "none";
+        return;
+      }
+      log.appendChild(div);
+    }
+  }, 500);
+}
+
+function abrirOrdemServico(problema) {
+  var log = $("actionLog");
+  log.innerHTML = '<div class="step ok">Ordem de serviço criada: OS-' + Date.now().toString().slice(-6) +
+    ' — ' + problema.codigo + ' (' + equipamentoAtual + '). Encaminhada para a equipe de manutenção.</div>';
+  $("btnAbrirOS").disabled = true;
+  atualizarUltimoHistorico("Ordem de serviço aberta");
+}
+
+function atualizarUltimoHistorico(desfecho) {
+  if (historico.length) {
+    historico[0].desfecho = desfecho;
+    renderHistorico();
+  }
+}
+
+// --- HISTÓRICO ---
+function renderHistorico() {
+  var tbody = $("historicoBody");
+  if (historico.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhum diagnóstico executado ainda</td></tr>';
+    return;
+  }
+  tbody.innerHTML = historico.map(function (h) {
+    var badgeClass = h.classe === "tecnico" ? "badge-tecnico" : "badge-fisico";
+    var classeLabel = h.classe === "tecnico" ? "Técnico" : "Físico";
+    return "<tr><td class=\"mono\">" + new Date(h.ts).toLocaleTimeString("pt-BR", { hour12: false }) +
+      "</td><td>" + h.equipamento + "</td><td class=\"mono\">" + h.codigo +
+      '</td><td><span class="badge ' + badgeClass + '">' + classeLabel + "</span></td><td class=\"mono\">" + h.confianca +
+      "%</td><td>" + h.desfecho + "</td></tr>";
+  }).join("");
+}
+
+function limparHistorico() {
+  if (!confirm("Limpar todo o histórico de diagnósticos?")) return;
+  historico = [];
+  renderHistorico();
+}
+
+function exportarHistorico() {
+  var linhas = ["horario;equipamento;codigo;classificacao;confianca;desfecho"];
+  historico.forEach(function (h) {
+    linhas.push([h.ts, h.equipamento, h.codigo, h.classe, h.confianca, h.desfecho].join(";"));
+  });
+  var blob = new Blob([linhas.join("\n")], { type: "text/csv" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = "historico_diagnosticos.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// --- BASE DE PROBLEMAS ---
+function renderProblemas() {
+  $("problemasBody").innerHTML = problemas.map(function (p, idx) {
+    var badgeClass = p.classe === "tecnico" ? "badge-tecnico" : "badge-fisico";
+    var classeLabel = p.classe === "tecnico" ? "Técnico" : "Físico";
+    return "<tr><td class=\"mono\">" + p.codigo + "</td><td>" + p.sintomas.join(", ") + "</td><td>" + p.causa +
+      '</td><td><span class="badge ' + badgeClass + '">' + classeLabel + "</span></td><td>" + p.acao +
+      '</td><td><button class="btn btn-sm btn-danger" data-del-problema="' + idx + '">Remover</button></td></tr>';
+  }).join("");
+  Array.prototype.forEach.call($("problemasBody").querySelectorAll("[data-del-problema]"), function (btn) {
+    btn.addEventListener("click", function () {
+      problemas.splice(parseInt(btn.getAttribute("data-del-problema"), 10), 1);
+      renderProblemas();
+    });
+  });
+}
+
+function addProblema() {
+  var codigo = $("pCodigo").value.trim();
+  var sintomas = $("pSintomas").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+  var causa = $("pCausa").value.trim();
+  var classe = $("pClass").value;
+  var acao = $("pAcao").value.trim();
+  if (!codigo || sintomas.length === 0 || !causa || !acao) {
+    alert("Preencha código, sintomas, causa provável e ação.");
+    return;
+  }
+  problemas.push({ codigo: codigo, sintomas: sintomas, causa: causa, classe: classe, acao: acao });
+  $("pCodigo").value = ""; $("pSintomas").value = ""; $("pCausa").value = ""; $("pAcao").value = "";
+  renderProblemas();
+}
+
+// --- MANUAIS ---
+function renderManuais() {
+  $("manuaisBody").innerHTML = manuais.map(function (m, idx) {
+    var trecho = m.conteudo.length > 90 ? m.conteudo.slice(0, 90) + "..." : m.conteudo;
+    return "<tr><td>" + m.titulo + "</td><td>" + m.modelo + "</td><td style=\"color:var(--text-muted);\">" + trecho +
+      '</td><td><button class="btn btn-sm btn-danger" data-del-manual="' + idx + '">Remover</button></td></tr>';
+  }).join("");
+  Array.prototype.forEach.call($("manuaisBody").querySelectorAll("[data-del-manual]"), function (btn) {
+    btn.addEventListener("click", function () {
+      manuais.splice(parseInt(btn.getAttribute("data-del-manual"), 10), 1);
+      renderManuais();
+    });
+  });
+}
+
+function addManual() {
+  var titulo = $("mTitulo").value.trim();
+  var modelo = $("mModelo").value.trim();
+  var conteudo = $("mConteudo").value.trim();
+  if (!titulo || !conteudo) { alert("Preencha ao menos o título e o conteúdo do manual."); return; }
+  manuais.push({ titulo: titulo, modelo: modelo, conteudo: conteudo });
+  $("mTitulo").value = ""; $("mModelo").value = ""; $("mConteudo").value = "";
+  renderManuais();
+}
+
+// --- NAVEGAÇÃO ---
+document.addEventListener("DOMContentLoaded", function () {
+  Array.prototype.forEach.call(document.querySelectorAll(".nav-btn"), function (btn) {
+    btn.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".nav-btn"), function (b) { b.classList.remove("active"); });
+      Array.prototype.forEach.call(document.querySelectorAll(".view"), function (v) { v.classList.remove("active"); });
+      btn.classList.add("active");
+      $("view-" + btn.getAttribute("data-view")).classList.add("active");
+    });
+  });
+
+  $("btnConectar").addEventListener("click", conectar);
+  $("btnDesconectar").addEventListener("click", desconectar);
+  $("btnDiagnosticar").addEventListener("click", executarDiagnostico);
+  $("btnLimparHistorico").addEventListener("click", limparHistorico);
+  $("btnExportHistorico").addEventListener("click", exportarHistorico);
+  $("btnAddProblema").addEventListener("click", addProblema);
+  $("btnAddManual").addEventListener("click", addManual);
+
+  renderHistorico();
+  renderProblemas();
+  renderManuais();
+});
+
+</script>
+</body>
+</html>
